@@ -2,6 +2,12 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 
+const PROTECTED = [/^\/my(\/|$)/, /^\/profile(\/|$)/, /^\/events\/new$/, /^\/events\/[^/]+\/edit$/];
+
+export function isProtectedPath(pathname: string) {
+  return PROTECTED.some((re) => re.test(pathname));
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -47,15 +53,11 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  if (
-    request.nextUrl.pathname !== "/" &&
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth")
-  ) {
-    // no user, potentially respond by redirecting the user to the login page
+  // 보호 경로만 로그인 리다이렉트 (목록·상세는 비로그인 공개)
+  if (!user && isProtectedPath(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
+    url.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
 
